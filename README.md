@@ -11,6 +11,13 @@
     - Resending Modbus TCP packet to 502 port
 
 
+## Usage
+
+- Config in `.env`
+- Send customized packet: `python3 master.py`
+- Parse customized packet and resend to 502 port: `python3 slave.py`
+
+
 ## Reference
 
 - https://ieeexplore.ieee.org/document/6579545

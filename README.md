@@ -1,10 +1,14 @@
-# Modbus Secure Layer Demo - Master
+# Modbus Secure Layer Demo
 
 ## Description
 
 - Use `Scapy` to customeze packet.
-- Master send customized Modbus packet to slave.
 - `PACKET = ModbusSecure() / ModbusTCP() / Modbus()`
+- Master send customized Modbus packet to slave.
+- Slave parse customized Mobdus packet
+    - Checking data integrity
+    - Authertication
+    - Resending Modbus TCP packet to 502 port
 
 
 ## Reference

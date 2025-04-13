@@ -1,14 +1,7 @@
 import hashlib
 import hmac
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-HMAC_ALGORITHM_ID = int(os.getenv("HMAC_ALGORITHM_ID"))
-HMAC_KEY = os.getenv("HMAC_KEY").encode()
-SLAVE_IP = os.getenv("SLAVE_IP")
-SLAVE_PORT = int(os.getenv("SLAVE_PORT"))
+import time
 
 hashing_info = {
     0: {"algorithm": hashlib.sha256, "length": 32},
@@ -18,5 +11,26 @@ hashing_info = {
 
 
 # Calculate HMAC
-def get_hmac(data, hashing_algorithm):
-    return hmac.new(HMAC_KEY, data, hashing_algorithm).digest()
+def get_hmac(hmac_key, data, hashing_algorithm):
+    return hmac.new(hmac_key, data, hashing_algorithm).digest()
+
+
+# Generate a timestamp in microseconds
+def generate_timestamp():
+    return int(time.time() * 1_000_000)
+
+
+# Read standard modbus tcp packet
+def read_modbus_packet():
+    packet_dict = {}
+    with open("packet.conf", "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                key, value = line.split("=", 1)
+                packet_dict[key.strip()] = int(value.strip(), 16)
+                print(type(value.strip()))
+
+    return packet_dict

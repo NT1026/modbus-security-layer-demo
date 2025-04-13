@@ -1,26 +1,32 @@
 import socket
+from dotenv import load_dotenv
 from scapy.all import *
 
-from modbus import ModbusSec, ModbusTCP, Modbus
+from modbus import ModbusSecureLayer, ModbusTCP, Modbus
 from utils import get_hmac, hashing_info
 
-HOST = "0.0.0.0"
-PORT = 8888
 
 def main():
+    # Load environment variables
+    load_dotenv(override=True)
+
+    SLAVE_PRE_SHARE_HMAC_KEY = os.getenv("SLAVE_PRE_SHARE_HMAC_KEY").encode()
+    HOST = os.getenv("HOST")
+    PORT = int(os.getenv("PORT"))
+
     # Bind layers
-    bind_layers(ModbusSec, ModbusTCP)
+    bind_layers(ModbusSecureLayer, ModbusTCP)
     bind_layers(ModbusTCP, Modbus)
 
     # Create a socket
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind((HOST, PORT))
         s.listen()
-        print(f"Listening on port {PORT}...")
+        print(f"Listening on {HOST}:{PORT}...")
 
         conn, addr = s.accept()
         with conn:
-            print(f"Connected by {addr}")
+            print(f"Connection from {addr} established.")
             while True:
                 print("---")
                 data = conn.recv(1024)
@@ -29,16 +35,24 @@ def main():
                 print("Raw data received:", data.hex())
 
                 try:
-                    # Parse customized secure layer packet
-                    modbus_sec_layer = ModbusSec(data)
-                    modbus_tcp_layer = modbus_sec_layer.payload
+                    # Parse modbus secure layer packet
+                    modbus_sec_layer = ModbusSecureLayer(data)
+                    modbus_sec_layer.show()
 
-                    hmac_algorithm_id = modbus_sec_layer.fields["HMAC_Algorithm_Identifier"]
+                    hmac_algorithm_id = modbus_sec_layer.fields[
+                        "HMAC_Algorithm_Identifier"
+                    ]
                     received_hmac_hash = modbus_sec_layer.fields["HMAC_Hash"]
+
+                    timestamp = modbus_sec_layer.fields["Timestamp"]
+                    salting_key = (
+                        b"$" + str(timestamp).encode() + b"$" + SLAVE_PRE_SHARE_HMAC_KEY
+                    )
 
                     # Check if HMAC hash is valid
                     calculated_hmac_hash = get_hmac(
-                        data=bytes(modbus_tcp_layer),
+                        hmac_key=salting_key,
+                        data=bytes(modbus_sec_layer.payload),
                         hashing_algorithm=hashing_info[hmac_algorithm_id]["algorithm"],
                     )
 
@@ -47,11 +61,10 @@ def main():
 
                     if received_hmac_hash != calculated_hmac_hash:
                         print("Packet is INVALID")
-                        continue
                     else:
                         print("Packet is VALID")
 
-                    # resend the packet
+                    # Resend the packet to the master
                     conn.sendall(data)
 
                 except Exception as e:

@@ -35,7 +35,7 @@ class Modbus(Packet):
     ]
 
 
-def create_modbus_pkt(
+def create_modbus_tcp_layer_pkt(
     transaction_identifier, unit_identifier, function_code, reference_number, word_count
 ):
     return ModbusTCP(
@@ -50,13 +50,13 @@ def create_modbus_pkt(
     )
 
 
-def create_modbus_sec_pkt(modbus_pkt):
+def create_modbus_sec_layer_pkt(modbus_tcp_layer_pkt):
     return ModbusSec(
         Encapsulated_Protocol_Identifier=0,
         HMAC_Algorithm_Identifier=HMAC_ALGORITHM_ID,
         HMAC_Length=hashing_info[HMAC_ALGORITHM_ID]["length"],
         HMAC_Hash=get_hmac(
-            data=bytes(modbus_pkt),
+            data=bytes(modbus_tcp_layer_pkt),
             hashing_algorithm=hashing_info[HMAC_ALGORITHM_ID]["algorithm"],
         ),
-    )
+    ) / modbus_tcp_layer_pkt

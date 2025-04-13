@@ -63,8 +63,15 @@ def main():
                         print("Packet is INVALID")
                     else:
                         print("Packet is VALID")
+                        # Resend the Modbus TCP packet to <slave_ip>:502
+                        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s2:
+                            slave_ip = "172.16.76.140"
+                            # slave_ip = HOST
+                            s2.connect((slave_ip, 502))
+                            s2.sendall(bytes(modbus_sec_layer.payload))
+                            print(f"Modbus TCP packet resent to {slave_ip}:502")
 
-                    # Resend the packet to the master
+                    # Return the same packet to the master
                     conn.sendall(data)
 
                 except Exception as e:

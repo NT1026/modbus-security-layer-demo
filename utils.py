@@ -1,6 +1,5 @@
 import hashlib
 import hmac
-import os
 import time
 
 hashing_info = {
@@ -31,6 +30,5 @@ def read_modbus_packet():
             if "=" in line:
                 key, value = line.split("=", 1)
                 packet_dict[key.strip()] = int(value.strip(), 16)
-                print(type(value.strip()))
 
     return packet_dict

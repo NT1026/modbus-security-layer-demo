@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from scapy.all import *
 
 from modbus import ModbusSecureLayer, ModbusTCP, Modbus
-from utils import get_hmac, hashing_info
+from utils import generate_timestamp, get_hmac, hashing_info
 
 
 def main():
@@ -11,8 +11,10 @@ def main():
     load_dotenv(override=True)
 
     SLAVE_PRE_SHARE_HMAC_KEY = os.getenv("SLAVE_PRE_SHARE_HMAC_KEY").encode()
-    HOST = os.getenv("HOST")
-    PORT = int(os.getenv("PORT"))
+    MIDDLEWARE_IP = os.getenv("MIDDLEWARE_IP")
+    MIDDLEWARE_PORT = int(os.getenv("MIDDLEWARE_PORT"))
+    SLAVE_IP = os.getenv("SLAVE_IP")
+    SLAVE_PORT = int(os.getenv("SLAVE_PORT"))
 
     # Bind layers
     bind_layers(ModbusSecureLayer, ModbusTCP)
@@ -20,9 +22,9 @@ def main():
 
     # Create a socket
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind((HOST, PORT))
+        s.bind((MIDDLEWARE_IP, MIDDLEWARE_PORT))
         s.listen()
-        print(f"Listening on {HOST}:{PORT}...")
+        print(f"Listening on {MIDDLEWARE_IP}:{MIDDLEWARE_PORT}...")
 
         conn, addr = s.accept()
         with conn:
@@ -33,10 +35,11 @@ def main():
                 if not data:
                     break
                 print("Raw data received:", data.hex())
-
+                
                 try:
                     # Parse modbus secure layer packet
                     modbus_sec_layer = ModbusSecureLayer(data)
+                    print("---")
                     modbus_sec_layer.show()
 
                     hmac_algorithm_id = modbus_sec_layer.fields[
@@ -44,7 +47,20 @@ def main():
                     ]
                     received_hmac_hash = modbus_sec_layer.fields["HMAC_Hash"]
 
+                    # Check if timestamp is valid (in 60 seconds)
                     timestamp = modbus_sec_layer.fields["Timestamp"]
+                    current_time = generate_timestamp()
+
+                    print("---")
+                    if current_time - timestamp <= 60_000_000:
+                        print("Timestamp is VALID")
+                    else:
+                        print("Timestamp is INVALID")
+                        # Return the same packet to the master
+                        conn.sendall(data)
+                        break
+                    
+
                     salting_key = (
                         b"$" + str(timestamp).encode() + b"$" + SLAVE_PRE_SHARE_HMAC_KEY
                     )
@@ -56,24 +72,31 @@ def main():
                         hashing_algorithm=hashing_info[hmac_algorithm_id]["algorithm"],
                     )
 
+                    print("---")
                     print("Received HMAC hash:   ", received_hmac_hash.hex())
                     print("Calculated HMAC hash: ", calculated_hmac_hash.hex())
 
                     if received_hmac_hash != calculated_hmac_hash:
                         print("Packet is INVALID")
+
+                        # Return the same packet to the master
+                        conn.sendall(data)
+                        break
+
                     else:
                         print("Packet is VALID")
                         # Resend the Modbus TCP packet to <slave_ip>:502
                         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s2:
-                            slave_ip = "172.16.76.140"
-                            # slave_ip = HOST
-                            s2.connect((slave_ip, 502))
+                            s2.connect((SLAVE_IP, SLAVE_PORT))
                             s2.sendall(bytes(modbus_sec_layer.payload))
-                            print(f"Modbus TCP packet resent to {slave_ip}:502")
+                            print("---")
+                            print(f"Modbus TCP packet resent to {SLAVE_IP}:502")
+                            response = s2.recv(1024)
 
-                    # Return the same packet to the master
-                    conn.sendall(data)
-
+                            # Return response from <slave_ip>:502 to the master
+                            conn.sendall(response)
+                            break
+                
                 except Exception as e:
                     print(f"Parse Failed: {e}")
 

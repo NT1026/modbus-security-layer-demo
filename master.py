@@ -1,3 +1,5 @@
+import time
+
 from dotenv import load_dotenv
 from scapy.all import *
 
@@ -17,7 +19,7 @@ def main():
     # Generate a timestamp in microseconds
     timestamp = generate_timestamp()
     salting_key = b"$" + str(timestamp).encode() + b"$" + MASTER_PRE_SHARE_HMAC_KEY
-
+    
     # Read packet.conf
     pkt_dict = read_modbus_packet()
 
@@ -43,7 +45,16 @@ def main():
         s = socket.socket()
         s.connect((DESTINATION_IP, DESTINATION_PORT))
         ss = StreamSocket(s, Raw)
+
+        # Send the packet
+        start = time.perf_counter()
         ss.sr1(secure_layer, verbose=True)
+        end = time.perf_counter()
+        print("---")
+        print(f"Salting key: {salting_key.decode()}")
+        print("---")
+        print(f"Packet sent in {end - start:.4f} seconds")
+        print("---")
 
     except Exception as e:
         print(e)

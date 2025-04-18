@@ -66,7 +66,7 @@ def create_modbus_secure_layer_pkt(
             HMAC_Length=hashing_info[hmac_algorithm_id]["length"],
             HMAC_Hash=get_hmac(
                 hmac_key=bytes(hmac_key),
-                data=bytes(modbus_tcp_layer_pkt),
+                data=bytes(modbus_tcp_layer_pkt) + timestamp.to_bytes(8, "big"),
                 hashing_algorithm=hashing_info[hmac_algorithm_id]["algorithm"],
             ),
         )

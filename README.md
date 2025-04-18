@@ -15,10 +15,13 @@
 
 - Config in `.env`
 - Edit the standard Modbus TCP packet
-- Send standard Modbus TCP packet: `python3 master_standard.py`
-- Send customized Modbus packet: `python3 master.py`
-- Middleware parses customized packet and resend to slave: `python3 middleware.py`
 - Slave simulator: `python3 plc_simulator.py`
+- Send standard Modbus TCP packet to slave: `python3 master_standard.py`
+- Send customized Modbus packet to middleware: `python3 master.py`
+- Middleware parses customized packet and resend to slave: `python3 middleware.py`
+- If use ECDH for HKDF key generating, you should do `python3 generate_key_pair.py` first.
+    - Master need `demo-keys/master_private_key.pem`, `demo-keys/master_public_key.pem`, and `demo-keys/middleware_public_key.pem`
+    - Middleware need `demo-keys/middleware_private_key.pem`, `demo-keys/middleware_public_key.pem`, and `demo-keys/master_public_key.pem`
 
 
 ## Test

@@ -4,10 +4,14 @@ from dotenv import load_dotenv
 from scapy.all import *
 
 from modbus import create_modbus_secure_layer_pkt, create_modbus_tcp_layer_pkt
-from utils import generate_timestamp, read_modbus_packet
+from utils import HKDF_derive_key, generate_timestamp, read_modbus_packet
 
 # Load environment variables
 load_dotenv(override=True)
+
+MASTER_HMAC_KEY_TYPE = os.getenv("MASTER_HMAC_KEY_TYPE")
+MASTER_HKDF_SALT = os.getenv("MASTER_HKDF_SALT").encode()
+MASTER_HKDF_INFO = os.getenv("MASTER_HKDF_INFO").encode()
 
 HMAC_ALGORITHM_IDENTIFIER = int(os.getenv("HMAC_ALGORITHM_IDENTIFIER"))
 MASTER_PRE_SHARE_HMAC_KEY = os.getenv("MASTER_PRE_SHARE_HMAC_KEY").encode()
@@ -15,10 +19,35 @@ DESTINATION_IP = os.getenv("DESTINATION_IP")
 DESTINATION_PORT = int(os.getenv("DESTINATION_PORT"))
 
 
+def read_ECDH_keys():
+    # Read the ECDH keys from the files
+    try:
+        with open("demo-keys/master_private_key.pem", "rb") as f:
+            master_private_key = f.read()
+
+        with open("demo-keys/middleware_public_key.pem", "rb") as f:
+            middleware_public_key = f.read()
+
+        return master_private_key, middleware_public_key
+
+    except:
+        print("Error: ECDH keys not found.")
+        exit(1)
+
+
 def main():
+    # Read the ECDH keys and use HDKF to derive the shared secret
+    master_private_key, middleware_public_key = read_ECDH_keys()
+    shared_secret_key = HKDF_derive_key(
+        private_key=master_private_key,
+        public_key=middleware_public_key,
+        salt=MASTER_HKDF_SALT,
+        info=MASTER_HKDF_INFO,
+        length=32,
+    )
+
     # Generate a timestamp in microseconds
     timestamp = generate_timestamp()
-    salting_key = b"$" + str(timestamp).encode() + b"$" + MASTER_PRE_SHARE_HMAC_KEY
 
     # Create a standard modbus tcp packet
     pkt_dict = read_modbus_packet()
@@ -31,12 +60,28 @@ def main():
     )
 
     # Create a modbus secure layer packet
-    secure_layer = create_modbus_secure_layer_pkt(
-        timestamp=timestamp,
-        modbus_tcp_layer_pkt=modbus_tcp_layer,
-        hmac_algorithm_id=HMAC_ALGORITHM_IDENTIFIER,
-        hmac_key=salting_key,
-    )
+    print("---")
+    if MASTER_HMAC_KEY_TYPE == "preshared":
+        secure_layer = create_modbus_secure_layer_pkt(
+            timestamp=timestamp,
+            modbus_tcp_layer_pkt=modbus_tcp_layer,
+            hmac_algorithm_id=HMAC_ALGORITHM_IDENTIFIER,
+            hmac_key=MASTER_PRE_SHARE_HMAC_KEY,
+        )
+        print("Using pre-shared key for HMAC.")
+        print(f"Pre-shared key: {MASTER_PRE_SHARE_HMAC_KEY.hex()}")
+
+    elif MASTER_HMAC_KEY_TYPE == "ECDH":
+        secure_layer = create_modbus_secure_layer_pkt(
+            timestamp=timestamp,
+            modbus_tcp_layer_pkt=modbus_tcp_layer,
+            hmac_algorithm_id=HMAC_ALGORITHM_IDENTIFIER,
+            hmac_key=shared_secret_key,
+        )
+        print("Using ECDH-derived key for HMAC.")
+        print(f"ECDH-derived key: {shared_secret_key.hex()}")
+
+    print("---")
     secure_layer.show()
 
     # Send one customized modbus packet
@@ -50,7 +95,9 @@ def main():
         end = time.perf_counter()
 
         print("---")
-        print(f"Packet sent in {end - start:.4f} seconds, received packet payload: {res.load.hex()}")
+        print(
+            f"Packet sent in {end - start:.4f} seconds, received packet payload: {res.load.hex()}"
+        )
         print("---")
 
     except Exception as e:

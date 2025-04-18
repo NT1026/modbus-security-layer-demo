@@ -9,7 +9,6 @@ from modbus import ModbusSecureLayer, ModbusTCP, Modbus
 # Load environment variables
 load_dotenv(override=True)
 
-SLAVE_PRE_SHARE_HMAC_KEY = os.getenv("SLAVE_PRE_SHARE_HMAC_KEY").encode()
 MIDDLEWARE_IP = os.getenv("MIDDLEWARE_IP")
 MIDDLEWARE_PORT = int(os.getenv("MIDDLEWARE_PORT"))
 SLAVE_IP = os.getenv("SLAVE_IP")

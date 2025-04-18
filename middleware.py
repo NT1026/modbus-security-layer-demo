@@ -5,10 +5,14 @@ from dotenv import load_dotenv
 from scapy.all import *
 
 from modbus import ModbusSecureLayer, ModbusTCP, Modbus
-from utils import generate_timestamp, get_hmac, hashing_info
+from utils import HKDF_derive_key, generate_timestamp, get_hmac, hashing_info
 
 # Load environment variables
 load_dotenv(override=True)
+
+MIDDLEWARE_HMAC_KEY_TYPE = os.getenv("MIDDLEWARE_HMAC_KEY_TYPE")
+MIDDLEWARE_HKDF_SALT = os.getenv("MIDDLEWARE_HKDF_SALT").encode()
+MIDDLEWARE_HKDF_INFO = os.getenv("MIDDLEWARE_HKDF_INFO").encode()
 
 SLAVE_PRE_SHARE_HMAC_KEY = os.getenv("SLAVE_PRE_SHARE_HMAC_KEY").encode()
 MIDDLEWARE_IP = os.getenv("MIDDLEWARE_IP")
@@ -19,6 +23,22 @@ SLAVE_PORT = int(os.getenv("SLAVE_PORT"))
 # Bind layers
 bind_layers(ModbusSecureLayer, ModbusTCP)
 bind_layers(ModbusTCP, Modbus)
+
+
+def read_ECDH_keys():
+    # Read the ECDH keys from the files
+    try:
+        with open("demo-keys/middleware_private_key.pem", "rb") as f:
+            middleware_private_key = f.read()
+
+        with open("demo-keys/master_public_key.pem", "rb") as f:
+            master_public_key = f.read()
+
+        return middleware_private_key, master_public_key
+
+    except:
+        print("Error: ECDH keys not found.")
+        exit(1)
 
 
 def handle_client(conn, addr):
@@ -34,7 +54,6 @@ def handle_client(conn, addr):
         hmac_algorithm_id = modbus_sec_layer.fields["HMAC_Algorithm_Identifier"]
         received_hmac_hash = modbus_sec_layer.fields["HMAC_Hash"]
         timestamp = modbus_sec_layer.fields["Timestamp"]
-        salting_key = b"$" + str(timestamp).encode() + b"$" + SLAVE_PRE_SHARE_HMAC_KEY
 
         print("---")
         modbus_sec_layer.show()
@@ -50,11 +69,33 @@ def handle_client(conn, addr):
             conn.sendall(data)
 
         # Check if HMAC hash is valid
-        calculated_hmac_hash = get_hmac(
-            hmac_key=salting_key,
-            data=bytes(modbus_sec_layer.payload),
-            hashing_algorithm=hashing_info[hmac_algorithm_id]["algorithm"],
-        )
+        print("---")
+        if MIDDLEWARE_HMAC_KEY_TYPE == "preshared":
+            calculated_hmac_hash = get_hmac(
+                hmac_key=SLAVE_PRE_SHARE_HMAC_KEY,
+                data=bytes(modbus_sec_layer.payload) + timestamp.to_bytes(8, "big"),
+                hashing_algorithm=hashing_info[hmac_algorithm_id]["algorithm"],
+            )
+            print("Using pre-shared key for HMAC.")
+            print(f"Pre-shared key: {SLAVE_PRE_SHARE_HMAC_KEY.hex()}")
+
+        elif MIDDLEWARE_HMAC_KEY_TYPE == "ECDH":
+            # Read the ECDH keys and use HDKF to derive the shared secret
+            middleware_private_key, master_public_key = read_ECDH_keys()
+            shared_secret_key = HKDF_derive_key(
+                private_key=middleware_private_key,
+                public_key=master_public_key,
+                salt=MIDDLEWARE_HKDF_SALT,
+                info=MIDDLEWARE_HKDF_INFO,
+                length=32,
+            )
+            calculated_hmac_hash = get_hmac(
+                hmac_key=shared_secret_key,
+                data=bytes(modbus_sec_layer.payload) + timestamp.to_bytes(8, "big"),
+                hashing_algorithm=hashing_info[hmac_algorithm_id]["algorithm"],
+            )
+            print("Using ECDH-derived key for HMAC.")
+            print(f"ECDH-derived key: {shared_secret_key.hex()}")
 
         print("---")
         print("Received HMAC hash:   ", received_hmac_hash.hex())

@@ -22,6 +22,7 @@ def main():
 
     # Create a socket
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind((MIDDLEWARE_IP, MIDDLEWARE_PORT))
         s.listen()
         print(f"Listening on {MIDDLEWARE_IP}:{MIDDLEWARE_PORT}...")

@@ -36,8 +36,7 @@ def main():
         end = time.perf_counter()
 
         print("---")
-        print(f"Packet sent in {end - start:.4f} seconds")
-        print(f"Received packet payload: {res.load}")
+        print(f"Packet sent in {end - start:.4f} seconds, received packet payload: {res.load.hex()}")
         print("---")
 
     except Exception as e:

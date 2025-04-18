@@ -19,7 +19,7 @@ def main():
     # Generate a timestamp in microseconds
     timestamp = generate_timestamp()
     salting_key = b"$" + str(timestamp).encode() + b"$" + MASTER_PRE_SHARE_HMAC_KEY
-    
+
     # Read packet.conf
     pkt_dict = read_modbus_packet()
 

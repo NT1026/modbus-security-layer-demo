@@ -11,8 +11,8 @@ def main():
     # Load environment variables
     load_dotenv(override=True)
 
-    DESTINATION_IP = os.getenv("DESTINATION_IP")
-    DESTINATION_PORT = int(os.getenv("DESTINATION_PORT"))
+    STANDARD_DESTINATION_IP = os.getenv("STANDARD_DESTINATION_IP")
+    STANDARD_DESTINATION_PORT = int(os.getenv("STANDARD_DESTINATION_PORT"))
 
     # Read packet.conf
     pkt_dict = read_modbus_packet()
@@ -30,7 +30,7 @@ def main():
     # Socket
     try:
         s = socket.socket()
-        s.connect((DESTINATION_IP, DESTINATION_PORT))
+        s.connect((STANDARD_DESTINATION_IP, STANDARD_DESTINATION_PORT))
         ss = StreamSocket(s, Raw)
 
         # Send the packet

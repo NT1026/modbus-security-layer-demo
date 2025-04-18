@@ -36,16 +36,6 @@ def read_ECDH_keys():
 
 
 def main():
-    # Read the ECDH keys and use HDKF to derive the shared secret
-    master_private_key, middleware_public_key = read_ECDH_keys()
-    shared_secret_key = HKDF_derive_key(
-        private_key=master_private_key,
-        public_key=middleware_public_key,
-        salt=MASTER_HKDF_SALT,
-        info=MASTER_HKDF_INFO,
-        length=32,
-    )
-
     # Generate a timestamp in microseconds
     timestamp = generate_timestamp()
 
@@ -72,6 +62,15 @@ def main():
         print(f"Pre-shared key: {MASTER_PRE_SHARE_HMAC_KEY.hex()}")
 
     elif MASTER_HMAC_KEY_TYPE == "ECDH":
+        # Read the ECDH keys and use HDKF to derive the shared secret
+        master_private_key, middleware_public_key = read_ECDH_keys()
+        shared_secret_key = HKDF_derive_key(
+            private_key=master_private_key,
+            public_key=middleware_public_key,
+            salt=MASTER_HKDF_SALT,
+            info=MASTER_HKDF_INFO,
+            length=32,
+        )
         secure_layer = create_modbus_secure_layer_pkt(
             timestamp=timestamp,
             modbus_tcp_layer_pkt=modbus_tcp_layer,

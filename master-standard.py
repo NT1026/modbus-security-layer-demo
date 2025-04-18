@@ -3,21 +3,19 @@ import time
 from dotenv import load_dotenv
 from scapy.all import *
 
-from modbus import create_modbus_secure_layer_pkt, create_modbus_tcp_layer_pkt
-from utils import generate_timestamp, read_modbus_packet
+from modbus import create_modbus_tcp_layer_pkt
+from utils import read_modbus_packet
+
+# Load environment variables
+load_dotenv(override=True)
+
+STANDARD_DESTINATION_IP = os.getenv("STANDARD_DESTINATION_IP")
+STANDARD_DESTINATION_PORT = int(os.getenv("STANDARD_DESTINATION_PORT"))
 
 
 def main():
-    # Load environment variables
-    load_dotenv(override=True)
-
-    STANDARD_DESTINATION_IP = os.getenv("STANDARD_DESTINATION_IP")
-    STANDARD_DESTINATION_PORT = int(os.getenv("STANDARD_DESTINATION_PORT"))
-
-    # Read packet.conf
-    pkt_dict = read_modbus_packet()
-
     # Create a standard modbus tcp packet
+    pkt_dict = read_modbus_packet()
     modbus_tcp_layer = create_modbus_tcp_layer_pkt(
         transaction_identifier=pkt_dict["Transaction_Identifier"],
         unit_identifier=pkt_dict["Unit_Identifier"],
@@ -27,18 +25,19 @@ def main():
     )
     modbus_tcp_layer.show()
 
-    # Socket
+    # Send one standard modbus packet
     try:
         s = socket.socket()
         s.connect((STANDARD_DESTINATION_IP, STANDARD_DESTINATION_PORT))
         ss = StreamSocket(s, Raw)
 
-        # Send the packet
         start = time.perf_counter()
-        ss.sr1(modbus_tcp_layer, verbose=True)
+        res = ss.sr1(modbus_tcp_layer, verbose=True)
         end = time.perf_counter()
+
         print("---")
         print(f"Packet sent in {end - start:.4f} seconds")
+        print(f"Received packet payload: {res.load}")
         print("---")
 
     except Exception as e:

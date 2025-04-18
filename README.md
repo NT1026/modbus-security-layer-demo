@@ -15,10 +15,10 @@
 
 - Config in `.env`
 - Edit the standard Modbus TCP packet
-- Send standard Modbus TCP packet: `python3 master-standard.py`
+- Send standard Modbus TCP packet: `python3 master_standard.py`
 - Send customized Modbus packet: `python3 master.py`
 - Middleware parses customized packet and resend to slave: `python3 middleware.py`
-- Slave simulator: `python3 plc-simulator.py`
+- Slave simulator: `python3 plc_simulator.py`
 
 
 ## Test
